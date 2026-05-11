@@ -17,6 +17,29 @@ rather than five disconnected exercises.
 
 ---
 
+## Highlights
+
+<table>
+<tr>
+<td width="50%"><img src="hw1/assets/sample_frames.png" alt="HW1 sampled frames"/><br/><b>HW1 — CMU-MOSEI ingestion.</b> Frames sampled at 1 fps from the 20 video segments I pulled with <code>yt-dlp</code>, downsampled to 64×64 grayscale for the visual modality.</td>
+<td width="50%"><img src="hw2/assets/fusion_comparison_bars.png" alt="HW2 fusion comparison"/><br/><b>HW2 — Fusion shootout on AV-MNIST.</b> Final test accuracy for early / late / tensor / low-rank tensor (LMF) fusion. Tensor wins on raw accuracy; LMF wins on accuracy-per-parameter.</td>
+</tr>
+<tr>
+<td width="50%"><img src="hw2/assets/contrastive_alignment.png" alt="HW2 contrastive alignment"/><br/><b>HW2 — Align-before-fuse.</b> Adding a contrastive pre-alignment stage in front of the fusion head measurably improves both convergence and top-line accuracy.</td>
+<td width="50%"><img src="hw3/assets/lora_comparison.png" alt="HW3 LoRA results"/><br/><b>HW3 — LoRA fine-tuning of Qwen2.5-VL.</b> Held-out accuracy jumped from 33% (4/12, baseline) to 50% (6/12, LoRA @ LR=2e-4). The fine-tuned model also stopped hallucinating freeform emotion labels.</td>
+</tr>
+<tr>
+<td width="50%"><img src="hw4/assets/grpo_eval_example.png" alt="HW4 GRPO output"/><br/><b>HW4 — GRPO-trained model in action.</b> After GRPO post-training, the model reliably produces chain-of-thought + a single-word answer in the trained format. 100% format compliance on the held-out probes.</td>
+<td width="50%"><img src="hw5/assets/part4_architecture.png" alt="HW5 agent architecture"/><br/><b>HW5 — Agent architecture.</b> smolagents <code>CodeAgent</code> wrapping a vision-language backbone, with tools for frame fetching, comfort classification (the HW3/HW4 adapter), and Discord output.</td>
+</tr>
+<tr>
+<td width="50%"><img src="hw5/assets/discord_interaction.png" alt="HW5 Discord interaction"/><br/><b>HW5 — Agent in the class Discord.</b> Goal-directed responses with proper <code>@</code>-mention hydration (see <a href="hw5/utils.py"><code>hw5/utils.py</code></a>).</td>
+<td width="50%"><img src="hw5/assets/langfuse_dashboard.png" alt="HW5 Langfuse traces"/><br/><b>HW5 — Observability with Langfuse.</b> Every tool call, prompt, latency, and cost is logged so any run can be re-scored offline.</td>
+</tr>
+</table>
+
+---
+
 ## Repository layout
 
 ```
@@ -42,8 +65,8 @@ exactly what to re-download to reproduce.
 |---|---|---|---|
 | 1 | Data preprocessing | Hand-built CMU-MOSEI pipeline: 20 videos → frames + GloVe text + COVAREP audio, all aligned to segment-level labels | [hw1/assets/sample_frames.png](hw1/assets/sample_frames.png) |
 | 2 | Fusion & alignment | AV-MNIST with early / late / tensor / LMF fusion + contrastive alignment study | [hw2/assets/fusion_comparison_bars.png](hw2/assets/fusion_comparison_bars.png) |
-| 3 | Multimodal LLMs | LoRA fine-tune of Qwen2.5-VL on my comfort task; LR sweep (2e-4 vs 5e-4) | [hw3/Homework_3_Multimodal_LLMs.pdf](hw3/Homework_3_Multimodal_LLMs.pdf) |
-| 4 | GRPO / RL | Implemented GRPO advantage from scratch, trained the HW3 adapter further with rule-based rewards | [hw4/Homework_4_GRPO_VLMs.pdf](hw4/Homework_4_GRPO_VLMs.pdf) |
+| 3 | Multimodal LLMs | LoRA fine-tune of Qwen2.5-VL on my comfort task; LR sweep (2e-4 vs 5e-4); baseline 33% → 50% on held-out | [hw3/assets/lora_comparison.png](hw3/assets/lora_comparison.png) |
+| 4 | GRPO / RL | Implemented GRPO advantage from scratch, trained the HW3 adapter further with rule-based rewards | [hw4/assets/grpo_eval_example.png](hw4/assets/grpo_eval_example.png) |
 | 5 | AI Agents | smolagents-based vision agent, Discord integration, Langfuse traces, online eval | [hw5/assets/discord_interaction.png](hw5/assets/discord_interaction.png) |
 
 Each `hwN/` folder has its own README that gives the full context, results,

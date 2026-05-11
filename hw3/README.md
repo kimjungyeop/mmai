@@ -57,6 +57,14 @@ end-to-end without re-downloading CMU-MOSEI.
 Both are **gitignored** (LoRA adapters are ~70 MB each). To regenerate, run
 Problem 5 of the notebook on an A100.
 
+## Headline result
+
+![LoRA comparison](assets/lora_comparison.png)
+*Held-out evaluation after Problem 6: **baseline 4/12 (33%) → LoRA-tuned 6/12 (50%)**.
+The fine-tuned model also stopped hallucinating freeform emotion labels
+("Annoyed", "Confused", "Disappointed", "Fear", "Anxiety", "Happy") and stuck
+to my training vocabulary.*
+
 ## What was interesting
 
 - The off-the-shelf Qwen2.5-VL is already surprisingly OK at coarse facial

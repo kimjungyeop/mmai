@@ -55,6 +55,15 @@ per-rollout rewards `r ∈ R^{B·G}` and a token-level response mask:
 
 That's the entire signal that drives the GRPO clipped-surrogate loss.
 
+## Headline result
+
+![GRPO held-out example](assets/grpo_eval_example.png)
+*Held-out probe after GRPO training. The model produces a numbered
+chain-of-thought and ends with `Answer: <word>` exactly as trained.
+**Format compliance: 100% / Accuracy: 50%** on the small held-out set (the test
+probes use COCO images while training was on `mmai-data/` — domain shift is
+the main reason accuracy isn't higher).*
+
 ## Training artifacts
 
 [`grpo-output/`](grpo-output/) holds the trained LoRA adapter and the rollout
