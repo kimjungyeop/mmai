@@ -1,0 +1,43 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- Virtual envs ---
+.venv/
+venv/
+env/
+
+# --- IDE / tool state ---
+.claude/
+.idea/
+.vscode/
+.DS_Store
+
+# --- Secrets ---
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+
+# --- Large raw datasets (not redistributable) ---
+hw1/cmumosei_data/
+hw1/cmumosei_frames/
+hw1/cmumosei_videos/
+hw1/MultiBench/
+
+# --- Trained model weights (gigabytes; rebuild from notebook) ---
+hw3/qwen2_5_vl_lora_lr2e-4/
+hw3/qwen2_5_vl_lora_lr5e-4/
+hw3/qwen2_5_vl_lora_best
+hw3/cache_images/
+hw4/grpo-output/
+
+# --- Misc large artifacts ---
+*.safetensors
+*.bin
+*.ckpt
+*.pt
+*.pth
