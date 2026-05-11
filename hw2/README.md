@@ -1,65 +1,61 @@
 # HW2 — Multimodal Fusion & Alignment
 
-**Notebook:** [Homework_2_Multimodal_Fusion_and_Alignment.ipynb](Homework_2_Multimodal_Fusion_and_Alignment.ipynb)
-**Writeup:** [Homework_2_Multimodal_Fusion_and_Alignment.pdf](Homework_2_Multimodal_Fusion_and_Alignment.pdf)
-**Earlier draft (kept for reference):** [Homework_2_Multimodal_Fusion_and_Alignment_v1.ipynb](Homework_2_Multimodal_Fusion_and_Alignment_v1.ipynb)
+**Notebook:** [Homework_2_Multimodal_Fusion_and_Alignment.ipynb](Homework_2_Multimodal_Fusion_and_Alignment.ipynb) · **Writeup:** [Homework_2_Multimodal_Fusion_and_Alignment.pdf](Homework_2_Multimodal_Fusion_and_Alignment.pdf)
+**Earlier draft:** [Homework_2_Multimodal_Fusion_and_Alignment_v1.ipynb](Homework_2_Multimodal_Fusion_and_Alignment_v1.ipynb)
 
----
+## Part 1 — Reading reflection
 
-## What this homework is about
+Six questions on *align-before-fuse* (Li et al., 2021) and the *Platonic
+Representation Hypothesis* (Huh et al., 2024), discussed in the context of the
+HW1 comfort task.
 
-Two stacked questions:
+## Part 2 — Hands-on
 
-1. **Reading reflection** on *align-before-fuse* (Li et al., 2021) and the
-   *Platonic Representation Hypothesis* (Huh et al., 2024) — what do they
-   imply for my CMU-MOSEI comfort task?
-2. **Hands-on fusion on AV-MNIST** — a controlled benchmark where I implement
-   and compare every classical fusion strategy, then a contrastive alignment
-   variant, before applying the insight back to my own task.
+| Problem | Points | What |
+|---|---|---|
+| 1 | 5 | Tensor exercises |
+| 2 | 5 | Einsum exercises |
+| 3 | 10 | Unimodal baselines on AV-MNIST (audio + image) |
+| 4 | 10 | Early-fusion baseline on AV-MNIST |
+| 5 | 30 | Implement Early / Late / Tensor / LMF fusion on the HW1 dataset |
+| 6 | 30 | Contrastive learning on the HW1 dataset |
+| 7 | 10 | Reflection |
 
-AV-MNIST is the right benchmark here because it strips away every confound
-except the fusion strategy itself: clean audio + image of the same digit, no
-domain shift, no noisy labels. Whatever wins on AV-MNIST is what I'd start with
-on CMU-MOSEI.
+## Results on the HW1 dataset
 
-## Problems and what I did
+| Model | Test Acc | Parameters |
+|---|---|---|
+| Unimodal Visual | 93.78% | 1.07 M |
+| Unimodal Text | 100.00% | 47 K |
+| Early Fusion | 100.00% | 1.64 M |
+| Late Fusion | 100.00% | 1.11 M |
+| Tensor Fusion | 100.00% | 1.65 M |
+| LMF Fusion | 100.00% | 1.12 M |
 
-| Problem | Points | What | My result |
-|---|---|---|---|
-| 1 | 5 | Tensor exercises | warmup |
-| 2 | 5 | Einsum exercises | warmup |
-| 3 | 10 | Unimodal baselines (audio-only, image-only) | both train cleanly, image > audio |
-| 4 | 10 | Early-fusion multimodal baseline | beats either unimodal, as expected |
-| 5 | 30 | **Early / Late / Tensor / Low-rank tensor (LMF) fusion** comparison | all four implemented end-to-end, head-to-head |
-| 6 | 30 | **Contrastive alignment** of the two modalities before fusion | improves convergence & top-line accuracy |
-| 7 | 10 | Reflection — which fusion fits CMU-MOSEI | bias toward LMF for parameter efficiency, with contrastive pretraining |
+The text-only model already hits 100% because the dataset has only 26 unique
+videos and the text features are per-video GloVe averages (one unique
+embedding per video). Every fusion variant therefore also reaches 100% — the
+interesting axes of comparison become parameter count, memory, and time.
 
-## Headline plots
+## Contrastive learning result
+
+Mean cosine similarity: 0.72 (paired) vs 0.71 (unpaired). The 0.012 gap is
+small for the same reason as above — many frames in the batch share the same
+text embedding, so contrastive learning has a hard time creating clean
+positive/negative pairs.
+
+## Figures
 
 ![fusion comparison](assets/fusion_comparison_bars.png)
-*Final test accuracy across the four fusion strategies on AV-MNIST.*
+*Final test accuracy by fusion strategy.*
 
 ![fusion convergence](assets/fusion_convergence.png)
-*Training curves: tensor fusion converges fastest but LMF generalizes best at
-a fraction of the parameters.*
+*Training curves across fusion strategies.*
 
 ![contrastive alignment](assets/contrastive_alignment.png)
-*Effect of contrastive alignment as a pre-fusion stage.*
-
-## Tying it back to HW1
-
-For the CMU-MOSEI comfort task I argued for:
-
-- **Temporal alignment first** (segment-level timestamps from the SDK) — without
-  this, any fusion is mixing misaligned signals.
-- **Low-rank tensor fusion (LMF)** as the default — full tensor fusion blows up
-  with 3 modalities × non-trivial feature dims; LMF preserves the
-  cross-modal interactions at tractable cost.
-- **Optional contrastive pre-alignment** on (frame, transcript) pairs before
-  fusion, since AV-MNIST showed a measurable gain.
+*Post-alignment visualization.*
 
 ## Reproducing
 
-The AV-MNIST data and `MultiBench/` clone are pulled by the notebook's
-"Getting repo" and "Getting AV-MNIST dataset" cells. Both are gitignored to
-keep this repo light.
+AV-MNIST and the `MultiBench/` clone are pulled by the notebook and are
+gitignored.

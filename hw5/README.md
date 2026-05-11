@@ -1,80 +1,86 @@
-# HW5 — AI Agents in the Wild
+# HW5 — AI Agents (RestaurantFeatureBot)
 
-**Notebook:** [Homework_5_AI_Agents.ipynb](Homework_5_AI_Agents.ipynb)
-**Writeup:** [Homework_5_AI_Agents.pdf](Homework_5_AI_Agents.pdf)
-**Rendered HTML (easier to skim):** [Homework_5_AI_Agents_submission.html](Homework_5_AI_Agents_submission.html)
+**Notebook:** [Homework_5_AI_Agents.ipynb](Homework_5_AI_Agents.ipynb) · **Writeup:** [Homework_5_AI_Agents.pdf](Homework_5_AI_Agents.pdf) · **Rendered HTML:** [Homework_5_AI_Agents_submission.html](Homework_5_AI_Agents_submission.html)
 
----
+## Task
 
-## What this homework is about
+**RestaurantFeatureBot** — given a question of the form *"does &lt;X&gt; in Cambridge
+have &lt;feature Y&gt;?"*, return one of `yes`, `no`, or `uncertain`. The benchmark
+has 12 tasks split into normal / edge / adversarial.
 
-Build a real **goal-directed agent** — observation loop, tools, termination
-conditions — and then evaluate it as honestly as possible. Open-ended: I picked
-my own domain (continuing the comfort-sensing thread) and my own evaluation
-metrics. The notebook walks through six parts:
+> This homework is on a different task than HW1–HW4. The comfort-prediction
+> thread does not continue into HW5.
+
+## Parts and points
 
 | Part | Points | What |
 |---|---|---|
-| 1 | 20 | Reading reflection on agents vs chatbots, sequential decision framing, agent architectures, evaluation challenges |
-| 2 | 10 | Design metrics, grading rules, and trace schema *before* building anything |
-| 3 | 30 | Build the baseline agent with **smolagents** + custom tool integration |
-| 4 | 30 | **Multimodal language agent** — vision implementation + controlled comparison + safety/policy eval |
-| 5 | 20 | **Observability** — set up [Langfuse](https://langfuse.com), record traces, online eval |
-| 6 | 10 | **Discord integration** — agent runs in the class MMAI Discord world |
-| — | +10 | Optional: try OpenClaw |
+| 1 | 20 | Reading reflection (3 papers) |
+| 2 | 10 | Design metrics + trace schema *before* implementing |
+| 3 | 30 | smolagents baseline (Stage A: built-in tools; Stage B: custom tools) |
+| 4 | 30 | Multimodal vision agent + safety/policy evaluation |
+| 5 | 20 | Langfuse observability + online evaluation |
+| 6 | 10 | Discord integration |
+| Optional | +10 | OpenClaw |
 
-## Architecture (Part 4)
+## Results across configurations
 
-![part 4 architecture](assets/part4_architecture.png)
+12-task benchmark, single ground-truth `yes`/`no`/`uncertain` per task.
 
-The agent is a smolagents `CodeAgent` wrapping a vision-language backbone. Tools
-include a frame-fetcher, the comfort classifier from HW3/HW4, and a Discord
-sender (see [`utils.py`](utils.py) for the `@mention` hydration logic that lets
-the agent tag real users correctly).
+| Configuration | Verdict acc | Trajectory pass | Mean latency | Total tokens |
+|---|---|---|---|---|
+| Part 3 baseline (built-in tools only) | 58.3% | 66.7% | 20.4 s | 121 K |
+| Part 3 + custom tools | 41.7% | 100% | 78.5 s | 490 K |
+| Part 4 vision-enhanced (8-task subset) | 37.5% | 100% | 5.7 s | — |
+| Part 5 Config A (ToolCallingAgent, max_steps=4) | 0% | 0% | ~9 s | — |
+| Part 5 Config B (CodeAgent, 4 tools, max_steps=8) | 40% | 100% | ~85 s | — |
 
-## Observability with Langfuse
+The custom-tool and vision-enhanced agents add `image_search` and
+`verify_feature_in_image` (a Qwen2.5-VL-3B call) to the toolset. Trajectory
+pass-rate jumps to 100% because the agent now uses the perception channel,
+but raw verdict accuracy drops — the VL backbone returns "uncertain" when an
+image is partially cropped, and that uncertainty propagates up. The
+text-only baseline was sometimes more accurate because it confidently said
+"yes" or "no" from a review snippet, which inflated accuracy at the cost of
+calibration.
 
-Every agent run logs a trace: inputs, tool calls, intermediate thoughts, final
-output, latency, cost. This is what makes "online evaluation" tractable —
-you can replay any trace and re-score it later.
+## Safety eval (Part 4 Problem 2)
 
-![langfuse dashboard](assets/langfuse_dashboard.png)
+Three prompts: PII request, prompt-injection with a transactional ask, and
+face identification. The pre-mitigation Qwen system prompt already refused
+face ID cleanly. Adding a `GuardedTool` keyword wrapper as defense-in-depth
+*regressed* the surface behavior — the tool layer blocked the call silently,
+the agent looped, and returned `uncertain` instead of a clear refusal
+sentence. The lesson in the writeup: keep the system-prompt rules as the
+primary refusal mechanism, layer tool guardrails on top, but require an
+explicit refusal sentence whenever a guardrail fires.
 
-## Discord integration (Part 6)
+## Observability (Part 5)
 
-The agent lives in the class Discord server and responds to `@`-mentions.
-[`utils.py`](utils.py) handles the surprisingly fiddly job of converting LLM
-output like `"@alice, the frame looks calm"` into a real Discord mention
-(`<@123456789>`) by looking up the member in the guild cache — including a
-fallback to the message author so a user can always be tagged in a reply.
+Five instrumented runs landed in Langfuse: 5 traces, 97 observations
+(≈19 spans per trace). The dominant span is `verify_feature_in_image` —
+each VLM forward pass takes 6–12 s and the agent calls it multiple times
+before committing.
 
-![discord interaction](assets/discord_interaction.png)
+![Langfuse dashboard](assets/langfuse_dashboard.png)
 
-## Reading reflection (Part 1)
+## Discord (Part 6)
 
-Three readings — Anthropic's *Building Effective Agents* (2024) on the
-workflow↔agent spectrum and evaluator-optimizer patterns, plus two surveys
-of multimodal LLM agents and agent evaluation. The four answers in the
-notebook walk through:
+Bot username: **RestaurantFeatureBot#3140**, deployed to *MMAI Agents World*.
+Trigger: @mention **or** the keyword `restaurant:` (compound trigger chosen
+over always-on or LLM-decides — always-on burns A100 cycles on irrelevant
+chatter, LLM-decides adds a model call per inbound message).
+[`utils.py`](utils.py) handles converting `@alice` strings emitted by the LLM
+into real Discord mentions by looking up the member in the guild cache.
 
-1. What makes a system an *agent* rather than a chatbot or tool-using model.
-2. My system written out as a sequential decision problem (S, A, T, R, π).
-3. Comparison of two architectures from the literature applied to my task.
-4. Evaluation challenges specific to multimodal agents (trace ground-truthing,
-   tool-call grading, the difference between *correct answer* and *correct
-   process*).
+![Discord interaction](assets/discord_interaction.png)
 
-## Files in this folder
+## Architecture
 
-- `Homework_5_AI_Agents.ipynb` — full notebook, executed.
-- `Homework_5_AI_Agents.pdf` — writeup for submission.
-- `Homework_5_AI_Agents_submission.html` — rendered version, faster to read
-  on GitHub than scrolling the .ipynb.
-- `utils.py` — Discord helpers (mention hydration).
-- `assets/` — the three figures embedded above.
+![Part 4 architecture](assets/part4_architecture.png)
 
 ## Reproducing
 
-Requires accounts/keys for: a Claude or OpenAI endpoint for the LLM, Langfuse
-(free tier is fine), and a Discord bot token. None of these are committed —
-set them as environment variables before running the notebook.
+Requires accounts/keys for: an LLM endpoint, Langfuse (free tier is fine),
+and a Discord bot token. None are committed — set them as environment
+variables before running the notebook.

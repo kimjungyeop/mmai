@@ -1,85 +1,61 @@
 # HW4 — GRPO for Vision-Language Models
 
-**Notebook:** [Homework_4_GRPO_VLMs.ipynb](Homework_4_GRPO_VLMs.ipynb)
-**Writeup:** [Homework_4_GRPO_VLMs.pdf](Homework_4_GRPO_VLMs.pdf)
+**Notebook:** [Homework_4_GRPO_VLMs.ipynb](Homework_4_GRPO_VLMs.ipynb) · **Writeup:** [Homework_4_GRPO_VLMs.pdf](Homework_4_GRPO_VLMs.pdf)
 
----
+## Task
 
-## What this homework is about
+Train `Qwen/Qwen3-VL-2B-Instruct` with **GRPO** (Group Relative Policy
+Optimization, DeepSeekMath 2024) using two rule-based binary rewards.
 
-Reinforcement-learn the HW3 model with **Group Relative Policy Optimization**
-(GRPO, DeepSeekMath 2024). The pitch: PPO needs a learned critic, which doubles
-memory and adds another training instability. GRPO replaces the critic with a
-per-prompt group baseline — sample G completions per prompt, advantage is
-`(reward − group_mean) / group_std`. Cheaper, simpler, and works well when you
-have a cheap rule-based reward (which I do: "did the binary comfort label
-match?").
+> Note: HW4 uses a different base model than HW3 (`Qwen3-VL-2B` vs
+> `Qwen2.5-VL-3B`). The HW3 LoRA adapter is not reused.
 
 ## Problems
 
 | Problem | Points | What |
 |---|---|---|
-| 1 | — | GPU verification + secret word |
-| 2 | 10 | Prepare the dataset (mostly reuse of HW3's `mmai-data/`) |
-| 3 | 15 | **Conceptual**: walk through GRPO step-by-step in writing |
-| 4 | 25 | **Implementation**: write the GRPO advantage computation from scratch (with response masking) |
-| 5 | 15 | Design reward functions |
-| 6 | 10 | Build the training-rollout dataset |
-| 7 | 20 | Train with GRPO on top of the HW3 LoRA adapter |
-| 8 | 20 | Post-training evaluation on held-out frames |
+| 1 | — | GPU + secret word |
+| 2 | 10 | Reuse the HW3 dataset (`mmai-data/`) |
+| 3 | 15 | Walk through GRPO conceptually |
+| 4 | 25 | Implement the GRPO advantage from scratch |
+| 5 | 15 | Define reward functions |
+| 6 | 10 | Build the GRPO training dataset |
+| 7 | 20 | Train with TRL's `GRPOTrainer` |
+| 8 | 20 | Post-training evaluation |
 
-## Reading reflection (Part 1)
+## Rewards
 
-Three questions, summarized:
+| Reward | What it grades |
+|---|---|
+| `accuracy_reward` | Does the text after `Answer:` match ground truth? (binary) |
+| `format_reward` | Did the output contain the literal `Answer:` marker? (binary) |
 
-1. **GRPO vs PPO** — GRPO drops the value function, uses a group of G sampled
-   responses as the baseline. Tradeoffs: lower memory + simpler training, but
-   higher-variance advantage when G is small or rewards collapse to a constant
-   inside a group.
-2. **Reward design** — learned reward models are flexible but reward-hackable;
-   rule-based rewards (e.g., "matches ground truth") are robust but only as
-   good as your label and only work where the answer is checkable.
-3. **SFT vs GRPO** — SFT trains the model to *imitate* good completions; GRPO
-   trains it to *prefer* the better one among several samples. Different
-   loss surfaces, different failure modes.
+## Training settings
 
-## The advantage computation (Problem 4) in one paragraph
+`num_generations=2`, `max_completion_length=256`, `lr=1e-5`, `100 steps`,
+`batch_size=1`, `epsilon=0.2`, `temperature=0.9`, `beta=0.0`. LoRA: `r=16`,
+`alpha=32`, target `q/k/v/o_proj`. bf16 + gradient checkpointing.
 
-Given a batch of `B × G` rollouts (B prompts, G completions each) with
-per-rollout rewards `r ∈ R^{B·G}` and a token-level response mask:
+## Training dynamics
 
-1. Reshape rewards to `(B, G)`, compute per-group mean and std.
-2. Advantage of rollout `(b,g)` = `(r[b,g] − mean[b]) / (std[b] + ε)`.
-3. Flatten back to `(B·G,)`, then broadcast each scalar advantage across the
-   response length and zero out prompt tokens with the mask.
+`format_reward` saturated near 1.0 within ~10–20 steps (the marker is easy to
+emit). `accuracy_reward` climbed more slowly. With `G=2` the advantage is 0
+whenever both rollouts get the same reward, so many early steps produce
+near-zero gradients.
 
-That's the entire signal that drives the GRPO clipped-surrogate loss.
+## Held-out evaluation
 
-## Headline result
+2 COCO samples (cat, truck). The notebook reports **100% format compliance,
+50% accuracy** — cat correct, truck labelled as "highway sign" because the
+test image includes a highway sign overhead and the small VL backbone latched
+onto it.
 
 ![GRPO held-out example](assets/grpo_eval_example.png)
-*Held-out probe after GRPO training. The model produces a numbered
-chain-of-thought and ends with `Answer: <word>` exactly as trained.
-**Format compliance: 100% / Accuracy: 50%** on the small held-out set (the test
-probes use COCO images while training was on `mmai-data/` — domain shift is
-the main reason accuracy isn't higher).*
-
-## Training artifacts
-
-[`grpo-output/`](grpo-output/) holds the trained LoRA adapter and the rollout
-completions logged during training. **Gitignored** — it's ~120 MB. Inside:
-
-```
-grpo-output/
-├── adapter_config.json + adapter_model.safetensors   ← the trained LoRA
-├── chat_template.jinja, processor_config.json, tokenizer*  ← processor state
-├── training_args.bin
-├── checkpoint-100/                                   ← mid-training snapshot
-└── completions/                                      ← rollouts for inspection
-```
+*The GRPO-trained model produces numbered chain-of-thought reasoning before
+emitting `Answer:`.*
 
 ## Reproducing
 
-- Starts from the HW3 LoRA adapter (`hw3/qwen2_5_vl_lora_best`).
-- Reuses [`hw3/mmai-data/`](../hw3/mmai-data/) as the prompt source.
-- Train on an A100 — Problems 7 and 8 are the GPU-heavy ones.
+[`grpo-output/`](grpo-output/) (LoRA adapter + rollout completions + a
+mid-training `checkpoint-100/`) is gitignored. Re-run Problem 7 to regenerate.
+The training dataset is reused from [`../hw3/mmai-data/`](../hw3/mmai-data/).

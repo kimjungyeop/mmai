@@ -1,83 +1,62 @@
-# HW3 — Multimodal LLMs (Qwen2.5-VL LoRA fine-tuning)
+# HW3 — Multimodal LLMs (Qwen2.5-VL LoRA fine-tune)
 
-**Notebook:** [Homework_3_Multimodal_LLMs.ipynb](Homework_3_Multimodal_LLMs.ipynb)
-**Writeup:** [Homework_3_Multimodal_LLMs.pdf](Homework_3_Multimodal_LLMs.pdf)
+**Notebook:** [Homework_3_Multimodal_LLMs.ipynb](Homework_3_Multimodal_LLMs.ipynb) · **Writeup:** [Homework_3_Multimodal_LLMs.pdf](Homework_3_Multimodal_LLMs.pdf)
 
----
+## Task
 
-## What this homework is about
-
-Take a real vision-language model (Qwen2.5-VL), point it at my CMU-MOSEI
-comfort task, and:
-
-1. Build an instruction-tuning dataset out of segment frames + transcripts.
-2. Run **baseline inference** with the off-the-shelf model on held-out frames.
-3. Try **prompt engineering** to lift baseline performance.
-4. **LoRA fine-tune** on my dataset, sweeping learning rate.
-5. **Re-evaluate** post-training and compare against the prompt-engineered baseline.
-
-This is the first homework where I'm working with a model that already "knows"
-things about images and language — the question shifts from *can the model
-learn at all?* (HW2) to *how do I push an already-capable model toward my
-specific task without wrecking it?*
+Fine-tune `Qwen/Qwen2.5-VL-3B-Instruct` on the HW1 comfort task. Held-out set:
+4 frames × 3 question types (sentiment, emotion, comfort) = 12 QA pairs.
+Train/test split is by video (5 of 26 videos held out) so frames from the same
+speaker don't leak between splits.
 
 ## Problems
 
 | Problem | Points | What |
 |---|---|---|
-| 1 | — | GPU verification + secret word |
-| 2 | 20 | Build the (image, instruction, label) dataset from CMU-MOSEI frames |
-| 3 | 10 | Baseline inference on 4 held-out images |
-| 4 | 15 | Prompt engineering on the same held-out set |
-| 5 | 20 | LoRA fine-tuning (the main event) |
-| 6 | 30 | Post-training evaluation vs the baseline |
+| 1 | — | GPU + secret word |
+| 2 | 20 | Build the (image, question, answer) dataset |
+| 3 | 10 | Baseline inference on the held-out images |
+| 4 | 15 | Prompt engineering — 5 strategies |
+| 5 | 20 | LoRA fine-tuning |
+| 6 | 30 | Post-training evaluation |
 | 7 | 10 | Final reflection |
 
-## Dataset shape
+## Dataset
 
-[`mmai-data/`](mmai-data/) — the small (≈4 MB) image+JSONL dataset I generated
-from CMU-MOSEI:
+[`mmai-data/`](mmai-data/) — committed (~4 MB total):
 
-- `mmai-data/images/` — ≈thousand frames cropped from segments where the
-  sentiment signal was strong (|sentiment| ≥ 1).
-- `mmai-data/data.jsonl` — train split, one record per frame:
-  `{image, prompt, response}` triples.
-- `mmai-data/test_data.jsonl` — held-out test split.
+- `images/` — frames from HW1, cropped to single faces.
+- `data.jsonl` — train split with `{image, question, answer}` records.
+- `test_data.jsonl` — held-out test split.
 
-Keeping this in git (rather than gitignored) makes the notebook reproducible
-end-to-end without re-downloading CMU-MOSEI.
+## Headline numbers
 
-## LR sweep — what's in each checkpoint folder
+| Model | Held-out acc |
+|---|---|
+| Pre-trained baseline (Problem 3) | 4 / 12 (33%) |
+| Prompt-engineered (best of 5 strategies) | 50% on the 2 tested images |
+| LoRA, LR = 2e-4 (**selected**) | 6 / 12 (50%) |
+| LoRA, LR = 5e-4 | 4 / 12 (33%) |
 
-| Folder | LR | Notes |
-|---|---|---|
-| `qwen2_5_vl_lora_lr2e-4/` | 2e-4 | **Best** — cleaner convergence, picked as `qwen2_5_vl_lora_best` symlink |
-| `qwen2_5_vl_lora_lr5e-4/` | 5e-4 | More aggressive; faster early loss drop but overshot on eval |
+Chain-of-thought prompting scored 0% — when asked to describe before
+classifying, the model confabulated details about the low-resolution image and
+reasoned from them.
 
-Both are **gitignored** (LoRA adapters are ~70 MB each). To regenerate, run
-Problem 5 of the notebook on an A100.
+LoRA hyperparameters (both runs): `r=8`, `alpha=16`, `dropout=0.05`,
+`target=q_proj/k_proj/v_proj/o_proj`, `num_epochs=10`, `batch_size=2`,
+`grad_accum=4` (effective batch 8), `shortest_edge=288`. Trainable params:
+3.69 M (0.098% of the base model). Each run took ~35 minutes.
 
 ## Headline result
 
 ![LoRA comparison](assets/lora_comparison.png)
-*Held-out evaluation after Problem 6: **baseline 4/12 (33%) → LoRA-tuned 6/12 (50%)**.
-The fine-tuned model also stopped hallucinating freeform emotion labels
-("Annoyed", "Confused", "Disappointed", "Fear", "Anxiety", "Happy") and stuck
-to my training vocabulary.*
-
-## What was interesting
-
-- The off-the-shelf Qwen2.5-VL is already surprisingly OK at coarse facial
-  affect — the baseline isn't terrible even with no fine-tuning.
-- Prompt engineering bought a meaningful jump *and* exposed how brittle the
-  framing is: small wording changes flip predictions.
-- After LoRA, the model gets noticeably more consistent on borderline frames,
-  but I had to be careful not to push LR high enough to over-confidence it on
-  the training distribution.
+*Pre/post comparison. The LR=2e-4 fine-tune improved on the baseline by
+correcting one positive-sentiment video, gaining one comfort prediction, and
+eliminating freeform emotion labels in favor of the trained vocabulary. Both
+baseline and fine-tuned still miss the two negative-sentiment images — the
+training set has only 48/462 negative samples.*
 
 ## Reproducing
 
-- Adapter folders are gitignored. Re-run Problem 5 with the LR you want; the
-  notebook writes to a `qwen2_5_vl_lora_lr{LR}/` directory.
-- The fine-tuned adapter from this homework is the **starting checkpoint for
-  HW4 (GRPO)** — see [../hw4/README.md](../hw4/README.md).
+Adapter folders (`qwen2_5_vl_lora_lr2e-4/`, `qwen2_5_vl_lora_lr5e-4/`,
+symlink `qwen2_5_vl_lora_best`) are gitignored. Re-run Problem 5 to regenerate.
